@@ -1,0 +1,60 @@
+/**
+ * Triggered when a form is submitted.
+ * @param {Object} e - Form event object.
+ */
+function handleFormSubmit(e) {
+  // Get submitted row
+  const row = e.values;
+
+  // Process row for missing dates
+  const processedRow = processRow(row);
+
+  // Teacher email is captured by the form — adjust index if needed
+  const emailIndex = 1; // example: if email is in column B
+  const teacherEmail = processedRow[emailIndex];
+
+  // Append to teacher's log
+  appendRowToTeacherLog(teacherEmail, processedRow);
+}
+
+
+function pushProgramaticResponses() {
+  /**
+   * handles data written to form responses programatically. 
+   * this data will include "pending" in column Nf
+   * removes pending from the row, processes row, then pushs the data to the individual teacher's log
+   * changes "pending" in column N to "sent"
+   */
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName("Form Responses 1"); // adjust to your sheet name
+  const lastRow = sheet.getLastRow();
+
+  if (lastRow < 2) return; // no data rows
+
+  const dataRange = sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn());
+  const data = dataRange.getValues();
+
+  data.forEach((row, i) => {
+    const status = row[13]; // Column N (0-based index)
+    if (status === "pending") {
+      // Make a copy of the row so we don't modify the original
+      const rowForProcessing = [...row];
+      rowForProcessing[13] = null; // remove "pending" before sending to processRow
+
+      // Process the row
+      Logger.log(`Processing row: ${i}.`)
+      const processedRow = processRow(rowForProcessing);
+
+      // Get teacher email — adjust index if needed
+      const emailIndex = 1;
+      const teacherEmail = processedRow[emailIndex];
+
+      // Push to teacher log
+      Logger.log(`Sending data to log for ${teacherEmail}.`)
+      appendRowToTeacherLog(teacherEmail, processedRow);
+
+      // Mark original row as "sent"
+      sheet.getRange(i + 2, 14).setValue("sent"); // Column N = sent
+    }
+  });
+}
