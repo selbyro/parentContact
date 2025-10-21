@@ -1,0 +1,119 @@
+/**
+ * Gets the dictionary sheet.
+ * @return {GoogleAppsScript.Spreadsheet.Sheet}
+ */
+function getDictionarySheet() {
+  const dictId = PropertiesService.getScriptProperties().getProperty("individualLogDict");
+  const dictSS = SpreadsheetApp.openById(dictId);
+  return dictSS.getSheets()[0]; // assume dictionary is in the first sheet
+}
+
+/**
+ * Finds the log ID for a teacher by email.
+ * @param {string} email
+ * @return {string|null}
+ */
+function getTeacherLogId(email) {
+  const dictSheet = getDictionarySheet();
+  const data = dictSheet.getDataRange().getValues();
+
+  for (let i = 1; i < data.length; i++) { // skip header
+    if (data[i][0] === email) {
+      return data[i][1]; // second column = log ID
+    }
+  }
+  return null;
+}
+
+/**
+ * Adds a new teacher to dictionary with their log ID.
+ * @param {string} email
+ * @param {string} logId
+ */
+function addTeacherToDictionary(email, logId) {
+  const dictSheet = getDictionarySheet();
+  dictSheet.appendRow([email, logId]);
+}
+
+//for use in naming the sheet. 
+function stripDomain(email) {
+  if (!email || email.indexOf("@") === -1) {
+    return email; // return as-is if it's not a valid email
+  }
+  return email.split("@")[0];
+}
+/**
+ * Creates a new individual log spreadsheet, shares with teacher, and returns ID.
+ * @param {string} email
+ * @return {string} logId
+ */
+function createNewTeacherLog(email) {
+  const sheetName = stripDomain(email);
+  const ss = SpreadsheetApp.create("Parent Contact Log " + sheetName);
+  const logId = ss.getId();
+
+  // Move the new file into a specific folder
+  const folderId = "16dLROOpDiW4lJWTDp5KIPBPqqaXZf6L-"; // <-- r folder ID for storing individual teacher logs. 
+  const file = DriveApp.getFileById(logId);
+  const folder = DriveApp.getFolderById(folderId);
+  folder.addFile(file); // add to folder
+  DriveApp.getRootFolder().removeFile(file); // remove from "My Drive"
+
+  // Give teacher edit access and send custom email with the link
+  shareWithCustomMessage(logId, email);
+
+  // Optional: Add headers
+  const mainId = PropertiesService.getScriptProperties().getProperty("contactLogID");
+  const mainSS = SpreadsheetApp.openById(mainId);
+  const headers = mainSS.getSheets()[0]
+    .getRange(1, 1, 1, mainSS.getSheets()[0].getLastColumn())
+    .getValues()[0];
+  ss.getSheets()[0].appendRow(headers);
+
+  // Add to dictionary
+  addTeacherToDictionary(email, logId);
+
+  return logId;
+}
+
+
+/**
+ * Appends a row of data to a teacher's individual log.
+ * @param {string} email
+ * @param {Array} row
+ */
+function appendRowToTeacherLog(email, row) {
+  let logId = getTeacherLogId(email);
+
+  if (!logId) {
+    logId = createNewTeacherLog(email);
+  }
+
+  const teacherSS = SpreadsheetApp.openById(logId);
+  teacherSS.getSheets()[0].appendRow(row);
+}
+
+
+/**
+ * Adds editor access without sending Google's default notification
+ * and sends a custom email instead.
+ * @param {string} fileId - The spreadsheet ID
+ * @param {string} email - The teacher's email
+ */
+function shareWithCustomMessage(fileId, email) {
+  const file = DriveApp.getFileById(fileId);
+
+  // Give the teacher edit access
+  file.addEditor(email);
+
+  // Send your custom message
+  MailApp.sendEmail({
+    to: email,
+    subject: "Your Individual Contact Log Has Been Created",
+    body: "Hello!\n\nIt looks like you just filled out the parent contact form for the first time. A new Google Sheet has been created for you to track parent contacts:\n" +
+          "Here is the link: https://docs.google.com/spreadsheets/d/" + fileId + "\n\n" +
+          "This sheet will automatically be updated each time you submit a new parent contact.\n" +
+          "You have edit access. Please let me know if you have any issues.\n\nBest,\nLogan Selby"
+  });
+}
+
