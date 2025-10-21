@@ -1,0 +1,52 @@
+/**
+ * Formats a timestamp into MM/dd.
+ * @param {string|Date} timestamp - The raw timestamp from column A.
+ * @return {string} - Formatted date (MM/dd).
+ */
+function formatToMMDDYY(timestamp) {
+  if (!timestamp) return "";
+  const date = new Date(timestamp);
+  return Utilities.formatDate(date, Session.getScriptTimeZone(), "MM/dd/yy");
+}
+
+/**
+ * Fixes the Contact Date (col G) if blank.
+ * @param {Array} row - The submitted form row as an array.
+ * @return {Array} - The updated row.
+ */
+function fixContactDate(row) {
+  const timestamp = row[0];   // Column A (Timestamp)
+  const contactDateIndex = 6; // Column G (zero-based)
+
+  if (!row[contactDateIndex]) {
+    row[contactDateIndex] = formatToMMDDYY(timestamp);
+  }
+  return row;
+}
+
+/**
+ * Fixes the Date of Absence (col K) if blank AND col F = "Attendance".
+ * @param {Array} row - The submitted form row as an array.
+ * @return {Array} - The updated row.
+ */
+function fixDateOfAbsence(row) {
+  const timestamp = row[0];     // Column A (Timestamp)
+  const reasonIndex = 5;        // Column F
+  const absenceDateIndex = 10;  // Column K
+
+  if (row[reasonIndex] === "Attendance" && !row[absenceDateIndex]) {
+    row[absenceDateIndex] = formatToMMDDYY(timestamp);
+  }
+  return row;
+}
+
+/**
+ * Master processor for a row: applies all rules.
+ * @param {Array} row
+ * @return {Array}
+ */
+function processRow(row) {
+  row = fixContactDate(row);
+  row = fixDateOfAbsence(row);
+  return row;
+}
